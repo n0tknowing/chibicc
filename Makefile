@@ -1,6 +1,7 @@
 CFLAGS=-std=c11 -g -fno-common -Wall -Wno-switch
 
-SRCS=$(wildcard *.c)
+SRCS=codegen.c hashmap.c main.c parse.c preprocess.c strings.c tokenize.c\
+	 type.c unicode.c
 OBJS=$(SRCS:.c=.o)
 
 TEST_SRCS=$(wildcard test/*.c)
