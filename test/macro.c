@@ -409,6 +409,9 @@ int main() {
 #define M31(x, y) (1, ##x y)
   ASSERT(3, M31(, 3));
 
+#define M32 3 ## 4
+  ASSERT(34, M32);
+
   printf("OK\n");
   return 0;
 }

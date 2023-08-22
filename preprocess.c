@@ -72,6 +72,7 @@ static int include_next_idx;
 
 static Token *preprocess2(Token *tok);
 static Macro *find_macro(Token *tok);
+static Token *paste(Token *lhs, Token *rhs);
 
 static bool is_hash(Token *tok) {
   return tok->at_bol && equal(tok, "#") && !tok->origin;
@@ -366,6 +367,9 @@ static MacroParam *read_macro_params(Token **rest, Token *tok, char **va_args_na
 }
 
 static void read_macro_definition(Token **rest, Token *tok) {
+  Token head = {};
+  Token *cur = &head;
+
   if (tok->kind != TK_IDENT)
     error_tok(tok, "macro name must be an identifier");
   char *name = strndup(tok->loc, tok->len);
@@ -381,7 +385,23 @@ static void read_macro_definition(Token **rest, Token *tok) {
     m->va_args_name = va_args_name;
   } else {
     // Object-like macro
-    add_macro(name, true, copy_line(rest, tok));
+    while (!tok->at_bol) {
+      if (equal(tok, "##")) {
+        if (cur == &head)
+          error_tok(tok, "'##' cannot appear at start of macro definition");
+        if (tok->next->at_bol)
+          error_tok(tok, "'##' cannot appear at end of macro definition");
+        *cur = *paste(cur, tok->next);
+        tok = tok->next->next;
+        continue;
+      }
+      cur = cur->next = copy_token(tok);
+      tok = tok->next;
+    }
+
+    cur->next = new_eof(tok);
+    *rest = tok;
+    add_macro(name, true, head.next);
   }
 }
 
@@ -502,8 +522,11 @@ static Token *paste(Token *lhs, Token *rhs) {
 
   // Tokenize the resulting string.
   Token *tok = tokenize(new_file(lhs->file->name, lhs->file->file_no, buf));
-  if (tok->next->kind != TK_EOF)
-    error_tok(lhs, "pasting forms '%s', an invalid token", buf);
+  if (tok->next->kind != TK_EOF) {
+    error_tok(lhs, "Invalid preprocessing token '%s' produced by pasting "
+                   "'%.*s' and '%.*s'", buf, lhs->len, lhs->loc, rhs->len,
+                   rhs->loc);
+  }
   return tok;
 }
 
