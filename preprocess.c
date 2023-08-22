@@ -1086,6 +1086,9 @@ void init_macros(void) {
   define_macro("__C99_MACRO_WITH_VA_ARGS", "1");
   define_macro("__ELF__", "1");
   define_macro("__LP64__", "1");
+  define_macro("__BYTE_ORDER__", "__ORDER_LITTLE_ENDIAN__");
+  define_macro("__ORDER_BIG_ENDIAN__", "4321");
+  define_macro("__ORDER_LITTLE_ENDIAN__", "1234");
   define_macro("__SIZEOF_DOUBLE__", "8");
   define_macro("__SIZEOF_FLOAT__", "4");
   define_macro("__SIZEOF_INT__", "4");
