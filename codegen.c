@@ -690,8 +690,6 @@ static void builtin_alloca(void) {
 
 // Generate code for a given node.
 static void gen_expr(Node *node) {
-  println("  .loc %d %d", node->tok->file->file_no, node->tok->line_no);
-
   switch (node->kind) {
   case ND_NULL_EXPR:
     return;
@@ -1186,8 +1184,6 @@ static void gen_expr(Node *node) {
 }
 
 static void gen_stmt(Node *node) {
-  println("  .loc %d %d", node->tok->file->file_no, node->tok->line_no);
-
   switch (node->kind) {
   case ND_IF: {
     int c = count();
@@ -1585,10 +1581,7 @@ static void emit_text(Obj *prog) {
 void codegen(Obj *prog, FILE *out) {
   output_file = out;
 
-  File **files = get_input_files();
-  for (int i = 0; files[i]; i++)
-    println("  .file %d \"%s\"", files[i]->file_no, files[i]->name);
-
+  println("  .file \"%s\"", base_file);
   assign_lvar_offsets(prog);
   emit_data(prog);
   emit_text(prog);
