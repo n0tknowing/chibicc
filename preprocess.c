@@ -74,7 +74,7 @@ static Token *preprocess2(Token *tok);
 static Macro *find_macro(Token *tok);
 
 static bool is_hash(Token *tok) {
-  return tok->at_bol && equal(tok, "#");
+  return tok->at_bol && equal(tok, "#") && !tok->origin;
 }
 
 // Some preprocessor directives such as #include allow extraneous
