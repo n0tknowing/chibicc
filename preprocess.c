@@ -914,7 +914,9 @@ static Token *preprocess2(Token *tok) {
       tok = tok->next;
       if (tok->kind != TK_IDENT)
         error_tok(tok, "macro name must be an identifier");
-      undef_macro(strndup(tok->loc, tok->len));
+      Macro *m = find_macro(tok);
+      if (m)
+        undef_macro(m->name);
       tok = skip_line(tok->next);
       continue;
     }
@@ -928,8 +930,8 @@ static Token *preprocess2(Token *tok) {
     }
 
     if (equal(tok, "ifdef")) {
-      bool defined = find_macro(tok->next);
-      push_cond_incl(tok, defined);
+      Macro *defined = find_macro(tok->next);
+      push_cond_incl(tok, !!defined);
       tok = skip_line(tok->next->next);
       if (!defined)
         tok = skip_cond_incl(tok);
@@ -937,7 +939,7 @@ static Token *preprocess2(Token *tok) {
     }
 
     if (equal(tok, "ifndef")) {
-      bool defined = find_macro(tok->next);
+      Macro *defined = find_macro(tok->next);
       push_cond_incl(tok, !defined);
       tok = skip_line(tok->next->next);
       if (defined)
