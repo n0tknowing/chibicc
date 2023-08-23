@@ -550,6 +550,7 @@ static void cc1(void) {
     return;
   }
 
+  join_adjacent_string_literals(tok);
   Obj *prog = parse(tok);
 
   // Open a temporary output buffer.

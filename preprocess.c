@@ -1159,7 +1159,7 @@ static StringKind getStringKind(Token *tok) {
 
 // Concatenate adjacent string literals into a single string literal
 // as per the C spec.
-static void join_adjacent_string_literals(Token *tok) {
+void join_adjacent_string_literals(Token *tok) {
   // First pass: If regular string literals are adjacent to wide
   // string literals, regular string literals are converted to a wide
   // type before concatenation. In this pass, we do the conversion.
@@ -1228,7 +1228,6 @@ Token *preprocess(Token *tok) {
   if (cond_incl)
     error_tok(cond_incl->tok, "unterminated conditional directive");
   convert_pp_tokens(tok);
-  join_adjacent_string_literals(tok);
 
   for (Token *t = tok; t; t = t->next)
     t->line_no += t->line_delta;
