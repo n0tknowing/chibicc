@@ -42,7 +42,7 @@ typedef struct {
 } StringArray;
 
 void strarray_push(StringArray *arr, char *s);
-char *format(char *fmt, ...) __attribute__((format(printf, 1, 2)));
+char *format(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 
 //
 // tokenize.c
