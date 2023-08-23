@@ -380,7 +380,25 @@ static void read_macro_definition(Token **rest, Token *tok) {
     char *va_args_name = NULL;
     MacroParam *params = read_macro_params(&tok, tok->next, &va_args_name);
 
-    Macro *m = add_macro(name, false, copy_line(rest, tok));
+    while (!tok->at_bol) {
+      if (equal(tok, "##")) {
+        if (cur == &head)
+          error_tok(tok, "'##' cannot appear at start of replacement list");
+        if (tok->next->at_bol)
+          error_tok(tok, "'##' cannot appear at end of replacement list");
+        cur = cur->next = copy_token(tok); // ##
+        cur = cur->next = copy_token(tok->next); // rhs
+        tok = tok->next->next;
+        continue;
+      }
+      cur = cur->next = copy_token(tok);
+      tok = tok->next;
+    }
+
+    cur->next = new_eof(tok);
+    *rest = tok;
+
+    Macro *m = add_macro(name, false, head.next);
     m->params = params;
     m->va_args_name = va_args_name;
   } else {
@@ -388,9 +406,9 @@ static void read_macro_definition(Token **rest, Token *tok) {
     while (!tok->at_bol) {
       if (equal(tok, "##")) {
         if (cur == &head)
-          error_tok(tok, "'##' cannot appear at start of macro definition");
+          error_tok(tok, "'##' cannot appear at start of replacement list");
         if (tok->next->at_bol)
-          error_tok(tok, "'##' cannot appear at end of macro definition");
+          error_tok(tok, "'##' cannot appear at end of replacement list");
         *cur = *paste(cur, tok->next);
         tok = tok->next->next;
         continue;
@@ -570,16 +588,13 @@ static Token *subst(Token *tok, MacroArg *args) {
     }
 
     if (equal(tok, "##")) {
-      if (cur == &head)
-        error_tok(tok, "'##' cannot appear at start of macro expansion");
-
-      if (tok->next->kind == TK_EOF)
-        error_tok(tok, "'##' cannot appear at end of macro expansion");
-
       MacroArg *arg = find_arg(args, tok->next);
       if (arg) {
         if (arg->tok->kind != TK_EOF) {
-          *cur = *paste(cur, arg->tok);
+          if (cur == &head)
+            cur = cur->next = copy_token(arg->tok);
+          else
+            *cur = *paste(cur, arg->tok);
           for (Token *t = arg->tok->next; t->kind != TK_EOF; t = t->next)
             cur = cur->next = copy_token(t);
         }
