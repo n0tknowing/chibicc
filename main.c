@@ -550,6 +550,7 @@ static void cc1(void) {
     return;
   }
 
+  convert_pp_tokens(tok);
   join_adjacent_string_literals(tok);
   Obj *prog = parse(tok);
 

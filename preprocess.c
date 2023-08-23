@@ -858,6 +858,7 @@ static Token *include_file(Token *tok, char *path, Token *filename_tok) {
 static void read_line_marker(Token **rest, Token *tok) {
   Token *start = tok;
   tok = preprocess(copy_line(rest, tok));
+  convert_pp_tokens(tok);
 
   if (tok->kind != TK_NUM || tok->ty->kind != TY_INT)
     error_tok(tok, "invalid line marker");
@@ -1242,7 +1243,6 @@ Token *preprocess(Token *tok) {
   tok = preprocess2(tok);
   if (cond_incl)
     error_tok(cond_incl->tok, "unterminated conditional directive");
-  convert_pp_tokens(tok);
 
   for (Token *t = tok; t; t = t->next)
     t->line_no += t->line_delta;
