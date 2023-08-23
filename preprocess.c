@@ -540,8 +540,8 @@ static Token *paste(Token *lhs, Token *rhs) {
 
   // Tokenize the resulting string.
   Token *tok = tokenize(new_file(lhs->file->name, lhs->file->file_no, buf));
-  if (tok->next->kind != TK_EOF) {
-    error_tok(lhs, "Invalid preprocessing token '%s' produced by pasting "
+  if (tok->kind == TK_EOF || tok->next->kind != TK_EOF) {
+    error_tok(lhs, "invalid preprocessing token '%s' produced by pasting "
                    "'%.*s' and '%.*s'", buf, lhs->len, lhs->loc, rhs->len,
                    rhs->loc);
   }

@@ -501,7 +501,7 @@ Token *tokenize(File *file) {
     // Skip line comments.
     if (startswith(p, "//")) {
       p += 2;
-      while (*p != '\n')
+      while (*p && *p != '\n')
         p++;
       has_space = true;
       continue;
