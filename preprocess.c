@@ -300,6 +300,8 @@ static long eval_const_expr(Token **rest, Token *tok) {
 
   // Convert pp-numbers to regular numbers
   convert_pp_tokens(expr);
+  if (expr->ty && is_flonum(expr->ty))
+    error_tok(expr, "floating constant in preprocessor expression");
 
   Token *rest2;
   long val = const_expr(&rest2, expr);
