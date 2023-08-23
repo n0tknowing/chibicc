@@ -687,7 +687,6 @@ static bool expand_macro(Token **rest, Token *tok) {
     for (Token *t = body; t->kind != TK_EOF; t = t->next)
       t->origin = tok;
     *rest = append(body, tok->next);
-    (*rest)->at_bol = tok->at_bol;
     (*rest)->has_space = tok->has_space;
     return true;
   }
@@ -715,7 +714,6 @@ static bool expand_macro(Token **rest, Token *tok) {
   for (Token *t = body; t->kind != TK_EOF; t = t->next)
     t->origin = macro_token;
   *rest = append(body, tok->next);
-  (*rest)->at_bol = macro_token->at_bol;
   (*rest)->has_space = macro_token->has_space;
   return true;
 }
