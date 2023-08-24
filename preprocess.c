@@ -98,6 +98,7 @@ static Token *copy_token(Token *tok) {
 
 static Token *new_eof(Token *tok) {
   Token *t = copy_token(tok);
+  t->at_bol = true;
   t->kind = TK_EOF;
   t->len = 0;
   return t;
@@ -946,6 +947,8 @@ static Token *preprocess2(Token *tok) {
     }
 
     if (equal(tok, "ifdef")) {
+      if (tok->next->kind != TK_IDENT)
+        error_tok(tok->next, "no macro name given in #ifdef directive");
       Macro *defined = find_macro(tok->next);
       push_cond_incl(tok, !!defined);
       tok = skip_line(tok->next->next);
@@ -955,6 +958,8 @@ static Token *preprocess2(Token *tok) {
     }
 
     if (equal(tok, "ifndef")) {
+      if (tok->next->kind != TK_IDENT)
+        error_tok(tok->next, "no macro name given in #ifndef directive");
       Macro *defined = find_macro(tok->next);
       push_cond_incl(tok, !defined);
       tok = skip_line(tok->next->next);
