@@ -882,7 +882,7 @@ static Token *preprocess2(Token *tok) {
 
   while (tok->kind != TK_EOF) {
     // If it is a macro, expand it.
-    if (expand_macro(&tok, tok))
+    if (tok->kind == TK_IDENT && expand_macro(&tok, tok))
       continue;
 
     // Pass through if it is not a "#".
