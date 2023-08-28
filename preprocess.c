@@ -72,7 +72,6 @@ static int include_next_idx;
 
 static Token *preprocess2(Token *tok);
 static Macro *find_macro(Token *tok);
-static Token *paste(Token *lhs, Token *rhs);
 
 static bool is_hash(Token *tok) {
   return tok->at_bol && equal(tok, "#") && !tok->origin;
@@ -375,54 +374,39 @@ static void read_macro_definition(Token **rest, Token *tok) {
 
   if (tok->kind != TK_IDENT)
     error_tok(tok, "macro name must be an identifier");
+
+  MacroParam *params = NULL;
+  bool is_objlike = true;
+  char *va_args_name = NULL;
   char *name = strndup(tok->loc, tok->len);
   tok = tok->next;
 
   if (!tok->has_space && equal(tok, "(")) {
-    // Function-like macro
-    char *va_args_name = NULL;
-    MacroParam *params = read_macro_params(&tok, tok->next, &va_args_name);
+    params = read_macro_params(&tok, tok->next, &va_args_name);
+    is_objlike = false;
+  }
 
-    while (!tok->at_bol) {
-      if (equal(tok, "##")) {
-        if (cur == &head)
-          error_tok(tok, "'##' cannot appear at start of replacement list");
-        if (tok->next->at_bol)
-          error_tok(tok, "'##' cannot appear at end of replacement list");
-        cur = cur->next = copy_token(tok); // ##
-        cur = cur->next = copy_token(tok->next); // rhs
-        tok = tok->next->next;
-        continue;
-      }
-      cur = cur->next = copy_token(tok);
-      tok = tok->next;
+  while (!tok->at_bol) {
+    if (equal(tok, "##")) {
+      if (cur == &head)
+        error_tok(tok, "'##' cannot appear at start of replacement list");
+      if (tok->next->at_bol)
+        error_tok(tok, "'##' cannot appear at end of replacement list");
+      cur = cur->next = copy_token(tok); // ##
+      cur = cur->next = copy_token(tok->next); // rhs
+      tok = tok->next->next;
+      continue;
     }
+    cur = cur->next = copy_token(tok);
+    tok = tok->next;
+  }
 
-    cur->next = new_eof(tok);
-    *rest = tok;
-
-    Macro *m = add_macro(name, false, head.next);
+  cur->next = new_eof(tok);
+  *rest = tok;
+  Macro *m = add_macro(name, is_objlike, head.next);
+  if (!is_objlike) {
     m->params = params;
     m->va_args_name = va_args_name;
-  } else {
-    // Object-like macro
-    while (!tok->at_bol) {
-      if (equal(tok, "##")) {
-        if (cur == &head)
-          error_tok(tok, "'##' cannot appear at start of replacement list");
-        if (tok->next->at_bol)
-          error_tok(tok, "'##' cannot appear at end of replacement list");
-        *cur = *paste(cur, tok->next);
-        tok = tok->next->next;
-        continue;
-      }
-      cur = cur->next = copy_token(tok);
-      tok = tok->next;
-    }
-
-    cur->next = new_eof(tok);
-    *rest = tok;
-    add_macro(name, true, head.next);
   }
 }
 
@@ -559,13 +543,17 @@ static bool has_varargs(MacroArg *args) {
 }
 
 // Replace func-like macro parameters with given arguments.
-static Token *subst(Token *tok, MacroArg *args) {
+// Or object-like macro with args set to NULL.
+static Token *subst(Macro *m, MacroArg *args) {
   Token head = {};
   Token *cur = &head;
+  Token *tok = m->body;
 
   while (tok->kind != TK_EOF) {
     // "#" followed by a parameter is replaced with stringized actuals.
-    if (equal(tok, "#")) {
+    // Also, it can appear in object-like macro, and if it's true, "#"
+    // is not treated as stringizing operator.
+    if (equal(tok, "#") && !m->is_objlike) {
       MacroArg *arg = find_arg(args, tok->next);
       if (!arg)
         error_tok(tok->next, "'#' is not followed by a macro parameter");
@@ -683,36 +671,29 @@ static bool expand_macro(Token **rest, Token *tok) {
     return true;
   }
 
-  // Object-like macro application
-  if (m->is_objlike) {
-    Hideset *hs = hideset_union(tok->hideset, new_hideset(m->name));
-    Token *body = add_hideset(m->body, hs);
-    for (Token *t = body; t->kind != TK_EOF; t = t->next)
-      t->origin = tok;
-    *rest = append(body, tok->next);
-    (*rest)->has_space = tok->has_space;
-    return true;
+  Token *macro_token = tok;
+  Hideset *hs = macro_token->hideset;
+  MacroArg *args = NULL;
+
+  if (!m->is_objlike) {
+    // If a funclike macro token is not followed by an argument list,
+    // treat it as a normal identifier.
+    if (!equal(tok->next, "("))
+      return false;
+
+    args = read_macro_args(&tok, tok, m->params, m->va_args_name);
+    Token *rparen = tok;
+
+    // Tokens that consist a func-like macro invocation may have different
+    // hidesets, and if that's the case, it's not clear what the hideset
+    // for the new tokens should be. We take the interesection of the
+    // macro token and the closing parenthesis and use it as a new hideset
+    // as explained in the Dave Prossor's algorithm.
+    hs = hideset_intersection(macro_token->hideset, rparen->hideset);
   }
 
-  // If a funclike macro token is not followed by an argument list,
-  // treat it as a normal identifier.
-  if (!equal(tok->next, "("))
-    return false;
-
-  // Function-like macro application
-  Token *macro_token = tok;
-  MacroArg *args = read_macro_args(&tok, tok, m->params, m->va_args_name);
-  Token *rparen = tok;
-
-  // Tokens that consist a func-like macro invocation may have different
-  // hidesets, and if that's the case, it's not clear what the hideset
-  // for the new tokens should be. We take the interesection of the
-  // macro token and the closing parenthesis and use it as a new hideset
-  // as explained in the Dave Prossor's algorithm.
-  Hideset *hs = hideset_intersection(macro_token->hideset, rparen->hideset);
   hs = hideset_union(hs, new_hideset(m->name));
-
-  Token *body = subst(m->body, args);
+  Token *body = subst(m, args);
   body = add_hideset(body, hs);
   for (Token *t = body; t->kind != TK_EOF; t = t->next)
     t->origin = macro_token;
