@@ -74,6 +74,17 @@ static Token *preprocess2(Token *tok);
 static Macro *find_macro(Token *tok);
 
 static bool is_hash(Token *tok) {
+  // [https://www.sigbus.info/n1570#6.10.3.4p3] tok->origin is checked here
+  // because "#" can appear in object-like macro, and after expansion of that
+  // macro, it's not a preprocessing directive even it resembles one.
+  // For example:
+  //    1. #define H #
+  //    2. #define I include
+  //    3.
+  //    4. H I <stdio.h>
+  // Line 4 produces these tokens:
+  //    {#} {include} {<stdio.h>}
+  // which are not treated as preprocessing directive.
   return tok->at_bol && equal(tok, "#") && !tok->origin;
 }
 
