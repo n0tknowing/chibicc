@@ -22,6 +22,7 @@
 #define MIN(x, y) ((x) < (y) ? (x) : (y))
 
 #ifndef __GNUC__
+# undef __attribute__
 # define __attribute__(x)
 #endif
 

@@ -117,12 +117,13 @@ int main() {
 
 #define M1 3
   ASSERT(3, M1);
+#undef M1
 #define M1 4
   ASSERT(4, M1);
-
+#undef M1
 #define M1 3+4+
   ASSERT(12, M1 5);
-
+#undef M1
 #define M1 3+4
   ASSERT(23, M1*5);
 
@@ -147,6 +148,7 @@ int main() {
 #endif
   ASSERT(5, m);
 
+#undef M
 #define M 5
 #if M-5
   m = 6;
@@ -205,26 +207,32 @@ int main() {
 #else
 #endif
 
+#undef M7
 #define M7() 1
   int M7 = 5;
   ASSERT(1, M7());
   ASSERT(5, M7);
 
+#undef M7
 #define M7 ()
   ASSERT(3, ret3 M7);
 
 #define M8(x,y) x+y
   ASSERT(7, M8(3, 4));
 
+#undef M8
 #define M8(x,y) x*y
   ASSERT(24, M8(3+4, 4+5));
 
+#undef M8
 #define M8(x,y) (x)*(y)
   ASSERT(63, M8(3+4, 4+5));
 
+#undef M8
 #define M8(x,y) x y
   ASSERT(9, M8(, 4+5));
 
+#undef M8
 #define M8(x,y) x*y
   ASSERT(20, M8((2+3), 4));
 
@@ -303,37 +311,46 @@ int main() {
 #endif
   ASSERT(5, m);
 
+#undef M12
 #define STR(x) #x
 #define M12(x) STR(x)
 #define M13(x) M12(foo.x)
   ASSERT(0, strcmp(M13(bar), "foo.bar"));
-
+#undef M13
 #define M13(x) M12(foo. x)
   ASSERT(0, strcmp(M13(bar), "foo. bar"));
 
+#undef M12
+#undef M13
 #define M12 foo
 #define M13(x) STR(x)
 #define M14(x) M13(x.M12)
   ASSERT(0, strcmp(M14(bar), "bar.foo"));
-
+#undef M14
 #define M14(x) M13(x. M12)
   ASSERT(0, strcmp(M14(bar), "bar. foo"));
 
 #include "include3.h"
   ASSERT(3, foo);
 
+#undef foo
 #include "include4.h"
   ASSERT(4, foo);
 
+#undef foo
+#undef M13
 #define M13 "include3.h"
 #include M13
   ASSERT(3, foo);
 
+#undef foo
+#undef M13
 #define M13 < include4.h
 #include M13 >
   ASSERT(4, foo);
 
 #undef foo
+#undef M14
 
   ASSERT(1, __STDC__);
 
@@ -346,38 +363,49 @@ int main() {
 #define M14(...) 3
   ASSERT(3, M14());
 
+#undef M14
 #define M14(...) __VA_ARGS__
   ASSERT(2, M14() 2);
   ASSERT(5, M14(5));
 
+#undef M14
 #define M14(...) add2(__VA_ARGS__)
   ASSERT(8, M14(2, 6));
 
+#undef M14
 #define M14(...) add6(1,2,__VA_ARGS__,6)
   ASSERT(21, M14(3,4,5));
 
+#undef M14
 #define M14(x, ...) add6(1,2,x,__VA_ARGS__,6)
   ASSERT(21, M14(3,4,5));
 
+#undef M14
 #define M14(args...) 3
   ASSERT(3, M14());
 
+#undef M14
 #define M14(x, ...) x
   ASSERT(5, M14(5));
 
+#undef M14
 #define M14(args...) args
   ASSERT(2, M14() 2);
   ASSERT(5, M14(5));
 
+#undef M14
 #define M14(args...) add2(args)
   ASSERT(8, M14(2, 6));
 
+#undef M14
 #define M14(args...) add6(1,2,args,6)
   ASSERT(21, M14(3,4,5));
 
+#undef M14
 #define M14(x, args...) add6(1,2,x,args,6)
   ASSERT(21, M14(3,4,5));
 
+#undef M14
 #define M14(x, args...) x
   ASSERT(5, M14(5));
 
@@ -406,35 +434,35 @@ int main() {
   ASSERT(0, ({ char buf[100]; M31(buf, "foo%d", 3); strcmp(buf, "foo3"); }));
   ASSERT(0, ({ char buf[100]; M31(buf, "foo%d%d", 3, 5); strcmp(buf, "foo35"); }));
 
-#define M31(x, y) (1, ##x y)
-  ASSERT(3, M31(, 3));
+#define M32(x, y) (1, ##x y)
+  ASSERT(3, M32(, 3));
 
-#define M32 3 ## 4
-  ASSERT(34, M32);
+#define M33 3 ## 4
+  ASSERT(34, M33);
 
-#define M32 3 ## 4 ## 5
-  ASSERT(345, M32);
+#define M34 3 ## 4 ## 5
+  ASSERT(345, M34);
 
-#define M33(...) # \
+#define M35(...) # \
     __VA_ARGS__
-#define M34(x, ...) # \
+#define M36(x, ...) # \
     __VA_ARGS__
 
-  ASSERT(0, strcmp(M33(1,2,3,4), "1,2,3,4"));
-  ASSERT(0, strcmp(M34(1,2,3,4), "2,3,4"));
+  ASSERT(0, strcmp(M35(1,2,3,4), "1,2,3,4"));
+  ASSERT(0, strcmp(M36(1,2,3,4), "2,3,4"));
 
-#define M35(x, y, z) x ## y ## z
-  ASSERT(123, M35(1,2,3));
-  ASSERT(45, M35(,4,5));
-  ASSERT(67, M35(6,,7));
-  ASSERT(89, M35(8,9,));
-  ASSERT(10, M35(10,,));
-  ASSERT(11, M35(,11,));
-  ASSERT(12, M35(,,12));
+#define M37(x, y, z) x ## y ## z
+  ASSERT(123, M37(1,2,3));
+  ASSERT(45, M37(,4,5));
+  ASSERT(67, M37(6,,7));
+  ASSERT(89, M37(8,9,));
+  ASSERT(10, M37(10,,));
+  ASSERT(11, M37(,11,));
+  ASSERT(12, M37(,,12));
 
-#define M36 -
+#define M38 -
   int p = 2;
-  int q = p M36-p;
+  int q = p M38-p;
   ASSERT(4, q);
 
   printf("OK\n");

@@ -389,7 +389,7 @@ static void read_macro_definition(Token **rest, Token *tok) {
   MacroParam *params = NULL;
   bool is_objlike = true;
   char *va_args_name = NULL;
-  char *name = strndup(tok->loc, tok->len);
+  Token *name = tok;
   tok = tok->next;
 
   if (!tok->has_space && equal(tok, "(")) {
@@ -414,10 +414,49 @@ static void read_macro_definition(Token **rest, Token *tok) {
 
   cur->next = new_eof(tok);
   *rest = tok;
-  Macro *m = add_macro(name, is_objlike, head.next);
-  if (!is_objlike) {
-    m->params = params;
-    m->va_args_name = va_args_name;
+
+  Macro *m = find_macro(name);
+  if (!m) {
+    m = add_macro(strndup(name->loc, name->len), is_objlike, head.next);
+    if (!is_objlike) {
+      m->params = params;
+      m->va_args_name = va_args_name;
+    }
+  } else {
+    if (m->is_objlike != is_objlike)
+      error_tok(name, "macro '%s' redefined", m->name);
+
+    // If m is funclike, compare the parameter first
+    if (!m->is_objlike) {
+      MacroParam *pa = m->params;
+      while (params && pa) {
+        if (!strcmp(params->name, pa->name)) {
+          params = params->next;
+          pa = pa->next;
+          continue;
+        }
+        error_tok(name, "macro '%s' redefined", m->name);
+      }
+      if (params || pa)
+        error_tok(name, "macro '%s' redefined", m->name);
+    }
+
+    // Now compare the replacement list
+    Token *body = head.next;
+    Token *mbody = m->body;
+    while (body->kind != TK_EOF && mbody->kind != TK_EOF) {
+      // Whitespace is intentionally not compared, a simple comparsion of
+      // `has_space == has_space` is still not right...
+      if (body->len == mbody->len &&
+          !memcmp(body->loc, mbody->loc, body->len)) {
+        body = body->next;
+        mbody = mbody->next;
+        continue;
+      }
+      error_tok(name, "macro '%s' redefined", m->name);
+    }
+    if (body->kind != TK_EOF || mbody->kind != TK_EOF)
+      error_tok(name, "macro '%s' redefined", m->name);
   }
 }
 
