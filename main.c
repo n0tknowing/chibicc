@@ -434,15 +434,27 @@ static void print_tokens(Token *tok) {
   FILE *out = open_file(opt_o ? opt_o : "-");
 
   int line = 1;
+  uint8_t ws = 0;
   for (; tok->kind != TK_EOF; tok = tok->next) {
-    if (line > 1 && tok->at_bol)
-      fprintf(out, "\n");
-    if (tok->has_space && !tok->at_bol)
-      fprintf(out, " ");
+    if (tok->at_bol) {
+      int line_delta = tok->line_no - line;
+      if (line_delta > 0 && line_delta <= 5) {
+        for (int i = 0; i < line_delta; i++)
+          fputc('\n', out);
+      } else {
+        // TODO: # <lineno> "<filename>"
+        if (line > 1)
+          fputc('\n', out);
+      }
+      line = tok->line_no;
+      ws = 1; // '\n' is count as 1
+    }
+    for (; ws < tok->ws; ws++)
+      fputc(' ', out);
+    ws = 0;
     fprintf(out, "%.*s", tok->len, tok->loc);
-    line++;
   }
-  fprintf(out, "\n");
+  fputc('\n', out);
 }
 
 static bool in_std_include_path(char *path) {

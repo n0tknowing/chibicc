@@ -86,7 +86,7 @@ struct Token {
   int line_no;      // Line number
   int line_delta;   // Line number
   bool at_bol;      // True if this token is at beginning of line
-  bool has_space;   // True if this token follows a space character
+  uint8_t ws;       // Count how many whitespaces this token have
   Hideset *hideset; // For macro expansion
   Token *origin;    // If this is expanded from a macro, the original token
 };

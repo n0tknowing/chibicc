@@ -392,7 +392,7 @@ static void read_macro_definition(Token **rest, Token *tok) {
   char *name = strndup(tok->loc, tok->len);
   tok = tok->next;
 
-  if (!tok->has_space && equal(tok, "(")) {
+  if (tok->ws == 0 && equal(tok, "(")) {
     params = read_macro_params(&tok, tok->next, &va_args_name);
     is_objlike = false;
   }
@@ -502,7 +502,7 @@ static char *join_tokens(Token *tok, Token *end) {
   // Compute the length of the resulting token.
   int len = 1;
   for (Token *t = tok; t != end && t->kind != TK_EOF; t = t->next) {
-    if (t != tok && t->has_space)
+    if (t != tok && t->ws > 0)
       len++;
     len += t->len;
   }
@@ -512,7 +512,7 @@ static char *join_tokens(Token *tok, Token *end) {
   // Copy token texts.
   int pos = 0;
   for (Token *t = tok; t != end && t->kind != TK_EOF; t = t->next) {
-    if (t != tok && t->has_space)
+    if (t != tok && t->ws > 0)
       buf[pos++] = ' ';
     strncpy(buf + pos, t->loc, t->len);
     pos += t->len;
@@ -648,7 +648,7 @@ static Token *subst(Macro *m, MacroArg *args) {
     if (arg) {
       Token *t = preprocess2(arg->tok);
       t->at_bol = tok->at_bol;
-      t->has_space = tok->has_space;
+      t->ws = tok->ws;
       for (; t->kind != TK_EOF; t = t->next)
         cur = cur->next = copy_token(t);
       tok = tok->next;
@@ -712,7 +712,7 @@ static bool expand_macro(Token **rest, Token *tok) {
       t->origin = macro_token;
     *rest = append(body, tok->next);
     (*rest)->at_bol = macro_token->at_bol;
-    (*rest)->has_space = macro_token->has_space;
+    (*rest)->ws = macro_token->ws;
   } else {
     *rest = tok->next;
   }

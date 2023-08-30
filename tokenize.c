@@ -9,8 +9,9 @@ static File **input_files;
 // True if the current position is at the beginning of a line
 static bool at_bol;
 
-// True if the current position follows a space character
-static bool has_space;
+// Count how many whitespaces a token have. If the count is >256 then it's
+// intentionally wrap around.
+static uint8_t ws;
 
 // Reports an error and exit.
 void error(char *fmt, ...) {
@@ -105,9 +106,10 @@ static Token *new_token(TokenKind kind, char *start, char *end) {
   tok->file = current_file;
   tok->filename = current_file->display_name;
   tok->at_bol = at_bol;
-  tok->has_space = has_space;
+  tok->ws = ws;
 
-  at_bol = has_space = false;
+  at_bol = false;
+  ws = 0;
   return tok;
 }
 
@@ -495,7 +497,7 @@ Token *tokenize(File *file) {
   Token *cur = &head;
 
   at_bol = true;
-  has_space = false;
+  ws = 0;
 
   while (*p) {
     // Skip line comments.
@@ -503,7 +505,7 @@ Token *tokenize(File *file) {
       p += 2;
       while (*p && *p != '\n')
         p++;
-      has_space = true;
+      ws = 1;
       continue;
     }
 
@@ -513,7 +515,7 @@ Token *tokenize(File *file) {
       if (!q)
         error_at(p, "unclosed block comment");
       p = q + 2;
-      has_space = true;
+      ws = 1;
       continue;
     }
 
@@ -521,14 +523,16 @@ Token *tokenize(File *file) {
     if (*p == '\n') {
       p++;
       at_bol = true;
-      has_space = false;
+      ws = 1;
       continue;
     }
 
     // Skip whitespace characters.
     if (isspace(*p)) {
+      if (*p == '\t')
+        ws++; // Convert tab to 2 spaces
       p++;
-      has_space = true;
+      ws++;
       continue;
     }
 
