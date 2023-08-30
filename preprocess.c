@@ -704,12 +704,17 @@ static bool expand_macro(Token **rest, Token *tok) {
   }
 
   hs = hideset_union(hs, new_hideset(m->name));
-  Token *body = subst(m, args);
-  body = add_hideset(body, hs);
-  for (Token *t = body; t->kind != TK_EOF; t = t->next)
-    t->origin = macro_token;
-  *rest = append(body, tok->next);
-  (*rest)->has_space = macro_token->has_space;
+  if (m->body->kind != TK_EOF) { // If replacement list is not empty
+    Token *body = subst(m, args);
+    body = add_hideset(body, hs);
+    for (Token *t = body; t->kind != TK_EOF; t = t->next)
+      t->origin = macro_token;
+    *rest = append(body, tok->next);
+    (*rest)->at_bol = macro_token->at_bol;
+    (*rest)->has_space = macro_token->has_space;
+  } else {
+    *rest = tok->next;
+  }
   return true;
 }
 
