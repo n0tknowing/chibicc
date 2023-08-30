@@ -83,7 +83,7 @@ static bool is_hash(Token *tok) {
   //    3.
   //    4. H I <stdio.h>
   // Line 4 produces these tokens:
-  //    {#} {include} {<stdio.h>}
+  //    {#} {include} {<} {stdio} {.} {h} {>}
   // which are not treated as preprocessing directive.
   return tok->at_bol && equal(tok, "#") && !tok->origin;
 }
@@ -704,6 +704,7 @@ static bool expand_macro(Token **rest, Token *tok) {
   }
 
   hs = hideset_union(hs, new_hideset(m->name));
+
   if (m->body->kind != TK_EOF) { // If replacement list is not empty
     Token *body = subst(m, args);
     body = add_hideset(body, hs);
