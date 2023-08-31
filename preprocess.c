@@ -1036,13 +1036,9 @@ static Token *preprocess2(Token *tok) {
       continue;
     }
 
-    if (equal(tok, "pragma") && equal(tok->next, "once")) {
-      hashmap_put(&pragma_once, tok->file->name, (void *)1);
-      tok = skip_line(tok->next->next);
-      continue;
-    }
-
     if (equal(tok, "pragma")) {
+      if (equal(tok->next, "once"))
+        hashmap_put(&pragma_once, tok->file->name, (void *)1);
       do {
         tok = tok->next;
       } while (!tok->at_bol);
