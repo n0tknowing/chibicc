@@ -437,6 +437,14 @@ int main() {
   int q = p M36-p;
   ASSERT(4, q);
 
+#define M37(s) #s
+  ASSERT(0, strcmp("a\n", M37(a\n)));
+  ASSERT(0, strcmp("x y \a+ 1", M37(x y \a+
+                                           1)));
+
+  ASSERT(0, strcmp("O K", M37(O 
+K)));
+
   printf("OK\n");
   return 0;
 }

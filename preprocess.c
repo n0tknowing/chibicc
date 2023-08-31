@@ -208,6 +208,21 @@ static Token *skip_cond_incl(Token *tok) {
   return tok;
 }
 
+// Copy all tokens until the next newline, terminate them with
+// an EOF token and then returns them. This function is used to
+// create a new list of tokens for `#if` arguments.
+static Token *copy_line(Token **rest, Token *tok) {
+  Token head = {};
+  Token *cur = &head;
+
+  for (; !tok->at_bol; tok = tok->next)
+    cur = cur->next = copy_token(tok);
+
+  cur->next = new_eof(tok);
+  *rest = tok;
+  return head.next;
+}
+
 // Double-quote a given string and returns it.
 static char *quote_string(char *str) {
   int bufsize = 3;
@@ -230,24 +245,11 @@ static char *quote_string(char *str) {
   return buf;
 }
 
-static Token *new_str_token(char *str, Token *tmpl) {
-  char *buf = quote_string(str);
+// If stringize is true, we don't need to quote it because it's already
+// quoted by # operator.
+static Token *new_str_token(char *str, Token *tmpl, bool stringize) {
+  char *buf = stringize ? str : quote_string(str);
   return tokenize(new_file(tmpl->file->name, tmpl->file->file_no, buf));
-}
-
-// Copy all tokens until the next newline, terminate them with
-// an EOF token and then returns them. This function is used to
-// create a new list of tokens for `#if` arguments.
-static Token *copy_line(Token **rest, Token *tok) {
-  Token head = {};
-  Token *cur = &head;
-
-  for (; !tok->at_bol; tok = tok->next)
-    cur = cur->next = copy_token(tok);
-
-  cur->next = new_eof(tok);
-  *rest = tok;
-  return head.next;
 }
 
 static Token *new_num_token(int val, Token *tmpl) {
@@ -497,38 +499,37 @@ static MacroArg *find_arg(MacroArg *args, Token *tok) {
   return NULL;
 }
 
-// Concatenates all tokens in `tok` and returns a new string.
-static char *join_tokens(Token *tok, Token *end) {
-  // Compute the length of the resulting token.
-  int len = 1;
-  for (Token *t = tok; t != end && t->kind != TK_EOF; t = t->next) {
-    if (t != tok && t->ws > 0)
-      len++;
-    len += t->len;
-  }
-
-  char *buf = calloc(1, len);
-
-  // Copy token texts.
-  int pos = 0;
-  for (Token *t = tok; t != end && t->kind != TK_EOF; t = t->next) {
-    if (t != tok && t->ws > 0)
-      buf[pos++] = ' ';
-    strncpy(buf + pos, t->loc, t->len);
-    pos += t->len;
-  }
-  buf[pos] = '\0';
-  return buf;
-}
-
 // Concatenates all tokens in `arg` and returns a new string token.
 // This function is used for the stringizing operator (#).
 static Token *stringize(Token *hash, Token *arg) {
   // Create a new string token. We need to set some value to its
   // source location for error reporting function, so we use a macro
   // name token as a template.
-  char *s = join_tokens(arg, NULL);
-  return new_str_token(s, hash);
+  char *s = NULL;
+  size_t size = 0;
+  FILE *fp = open_memstream(&s, &size);
+
+  fputc('"', fp);
+
+  for (Token *t = arg; t && t->kind != TK_EOF; t = t->next) {
+    if (t != arg && t->ws > 0)
+      fputc(' ', fp);
+    if (t->kind == TK_STR || t->loc[0] == '\'') {
+      const char *loc = t->loc;
+      for (int i = 0; i < t->len; i++) {
+        if (loc[i] == '"' || loc[i] == '\\')
+          fputc('\\', fp);
+        fputc(loc[i], fp);
+      }
+      continue;
+    }
+    fprintf(fp, "%.*s", t->len, t->loc);
+  }
+
+  fputc('"', fp);
+  fclose(fp);
+
+  return new_str_token(s, hash, true);
 }
 
 // Concatenate two tokens to create a new token.
@@ -589,6 +590,7 @@ static Token *subst(Macro *m, MacroArg *args) {
       }
     }
 
+    // ## rhs
     if (equal(tok, "##")) {
       MacroArg *arg = find_arg(args, tok->next);
       if (arg) {
@@ -611,6 +613,7 @@ static Token *subst(Macro *m, MacroArg *args) {
 
     MacroArg *arg = find_arg(args, tok);
 
+    // lhs ##
     if (arg && equal(tok->next, "##")) {
       Token *rhs = tok->next->next;
 
@@ -747,6 +750,30 @@ static char *search_include_next(char *filename) {
       return path;
   }
   return NULL;
+}
+
+// Concatenates all tokens in `tok` and returns a new string.
+static char *join_tokens(Token *tok, Token *end) {
+  // Compute the length of the resulting token.
+  int len = 1;
+  for (Token *t = tok; t != end && t->kind != TK_EOF; t = t->next) {
+    if (t != tok && t->ws > 0)
+      len++;
+    len += t->len;
+  }
+
+  char *buf = calloc(1, len);
+
+  // Copy token texts.
+  int pos = 0;
+  for (Token *t = tok; t != end && t->kind != TK_EOF; t = t->next) {
+    if (t != tok && t->ws > 0)
+      buf[pos++] = ' ';
+    strncpy(buf + pos, t->loc, t->len);
+    pos += t->len;
+  }
+  buf[pos] = '\0';
+  return buf;
 }
 
 // Read an #include argument.
@@ -1052,7 +1079,7 @@ static Macro *add_builtin(char *name, macro_handler_fn *fn) {
 static Token *file_macro(Token *tmpl) {
   while (tmpl->origin)
     tmpl = tmpl->origin;
-  return new_str_token(tmpl->file->display_name, tmpl);
+  return new_str_token(tmpl->file->display_name, tmpl, false);
 }
 
 static Token *line_macro(Token *tmpl) {
@@ -1074,16 +1101,16 @@ static Token *counter_macro(Token *tmpl) {
 static Token *timestamp_macro(Token *tmpl) {
   struct stat st;
   if (stat(tmpl->file->name, &st) != 0)
-    return new_str_token("??? ??? ?? ??:??:?? ????", tmpl);
+    return new_str_token("??? ??? ?? ??:??:?? ????", tmpl, false);
 
   char buf[30];
   ctime_r(&st.st_mtime, buf);
   buf[24] = '\0';
-  return new_str_token(buf, tmpl);
+  return new_str_token(buf, tmpl, false);
 }
 
 static Token *base_file_macro(Token *tmpl) {
-  return new_str_token(base_file, tmpl);
+  return new_str_token(base_file, tmpl, false);
 }
 
 // __DATE__ is expanded to the current date, e.g. "May 17 2020".
