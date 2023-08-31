@@ -681,6 +681,8 @@ static bool expand_macro(Token **rest, Token *tok) {
   // Built-in dynamic macro application such as __LINE__
   if (m->handler) {
     *rest = m->handler(tok);
+    (*rest)->at_bol = tok->at_bol;
+    (*rest)->ws = tok->ws;
     (*rest)->next = tok->next;
     return true;
   }
@@ -703,7 +705,7 @@ static bool expand_macro(Token **rest, Token *tok) {
     // for the new tokens should be. We take the interesection of the
     // macro token and the closing parenthesis and use it as a new hideset
     // as explained in the Dave Prossor's algorithm.
-    hs = hideset_intersection(macro_token->hideset, rparen->hideset);
+    hs = hideset_intersection(hs, rparen->hideset);
   }
 
   hs = hideset_union(hs, new_hideset(m->name));
