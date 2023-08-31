@@ -1049,8 +1049,13 @@ static Token *preprocess2(Token *tok) {
       continue;
     }
 
-    if (equal(tok, "error"))
-      error_tok(tok, "error");
+    if (equal(tok, "error")) {
+      do {
+        tok = tok->next;
+      } while (!tok->at_bol);
+      char *s = join_tokens(start, tok); // Use `start` so # can be printed.
+      error_tok(start, "%s", s);
+    }
 
     // `#`-only line is legal. It's called a null directive.
     if (tok->at_bol)
