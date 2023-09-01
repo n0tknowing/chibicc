@@ -320,13 +320,16 @@ static void parse_args(int argc, char **argv) {
         !strncmp(argv[i], "-W", 2) ||
         !strncmp(argv[i], "-g", 2) ||
         !strncmp(argv[i], "-std=", 5) ||
+        !strncmp(argv[i], "-fuse-ld=", 9) ||
         !strcmp(argv[i], "-ffreestanding") ||
         !strcmp(argv[i], "-fno-builtin") ||
         !strcmp(argv[i], "-fno-omit-frame-pointer") ||
         !strcmp(argv[i], "-fno-stack-protector") ||
         !strcmp(argv[i], "-fno-strict-aliasing") ||
+        !strcmp(argv[i], "-fwrapv") ||
         !strcmp(argv[i], "-m64") ||
         !strcmp(argv[i], "-mno-red-zone") ||
+        !strcmp(argv[i], "-pedantic") ||
         !strcmp(argv[i], "-w"))
       continue;
 
