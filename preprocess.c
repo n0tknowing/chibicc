@@ -54,9 +54,8 @@ struct Macro {
 typedef struct CondIncl CondIncl;
 struct CondIncl {
   CondIncl *next;
-  enum { IN_THEN, IN_ELIF, IN_ELSE } ctx;
+  enum { IN_THEN, IN_ELIF, IN_ELSE, IN_SKIP } ctx;
   Token *tok;
-  bool included;
 };
 
 typedef struct Hideset Hideset;
@@ -326,9 +325,8 @@ static long eval_const_expr(Token **rest, Token *tok) {
 static CondIncl *push_cond_incl(Token *tok, bool included) {
   CondIncl *ci = calloc(1, sizeof(CondIncl));
   ci->next = cond_incl;
-  ci->ctx = IN_THEN;
+  ci->ctx = included ? IN_THEN : IN_SKIP;
   ci->tok = tok;
-  ci->included = included;
   cond_incl = ci;
   return ci;
 }
@@ -957,7 +955,7 @@ static Token *preprocess2(Token *tok) {
     if (equal(tok, "undef")) {
       tok = tok->next;
       if (tok->kind != TK_IDENT)
-        error_tok(tok, "macro name must be an identifier");
+        error_tok(tok, "no macro name given in #undef directive");
       Macro *m = find_macro(tok);
       if (m)
         undef_macro(m->name);
@@ -965,9 +963,11 @@ static Token *preprocess2(Token *tok) {
       continue;
     }
 
+    Token *cond_name = tok;
+
     if (equal(tok, "if")) {
       long val = eval_const_expr(&tok, tok);
-      push_cond_incl(start, val);
+      push_cond_incl(cond_name, val != 0);
       if (!val)
         tok = skip_cond_incl(tok);
       continue;
@@ -977,7 +977,7 @@ static Token *preprocess2(Token *tok) {
       if (tok->next->kind != TK_IDENT)
         error_tok(tok->next, "no macro name given in #ifdef directive");
       Macro *defined = find_macro(tok->next);
-      push_cond_incl(tok, !!defined);
+      push_cond_incl(cond_name, !!defined);
       tok = skip_line(tok->next->next);
       if (!defined)
         tok = skip_cond_incl(tok);
@@ -988,7 +988,7 @@ static Token *preprocess2(Token *tok) {
       if (tok->next->kind != TK_IDENT)
         error_tok(tok->next, "no macro name given in #ifndef directive");
       Macro *defined = find_macro(tok->next);
-      push_cond_incl(tok, !defined);
+      push_cond_incl(cond_name, !defined);
       tok = skip_line(tok->next->next);
       if (defined)
         tok = skip_cond_incl(tok);
@@ -996,31 +996,40 @@ static Token *preprocess2(Token *tok) {
     }
 
     if (equal(tok, "elif")) {
-      if (!cond_incl || cond_incl->ctx == IN_ELSE)
-        error_tok(start, "stray #elif");
-      cond_incl->ctx = IN_ELIF;
+      if (!cond_incl)
+        error_tok(start, "#elif without previous #if");
+      else if (cond_incl->ctx == IN_ELSE)
+        error_tok(start, "#elif after #else");
 
-      if (!cond_incl->included && eval_const_expr(&tok, tok))
-        cond_incl->included = true;
-      else
+      if (cond_incl->ctx == IN_SKIP && eval_const_expr(&tok, tok)) {
+        cond_incl->ctx = IN_ELIF;
+        cond_incl->tok = cond_name;
+      } else {
         tok = skip_cond_incl(tok);
+      }
       continue;
     }
 
     if (equal(tok, "else")) {
-      if (!cond_incl || cond_incl->ctx == IN_ELSE)
-        error_tok(start, "stray #else");
-      cond_incl->ctx = IN_ELSE;
+      if (!cond_incl)
+        error_tok(start, "#else without previous #if");
+      else if (cond_incl->ctx == IN_ELSE)
+        error_tok(start, "#else after #else");
+
       tok = skip_line(tok->next);
 
-      if (cond_incl->included)
+      if (cond_incl->ctx != IN_SKIP) {
         tok = skip_cond_incl(tok);
+      } else {
+        cond_incl->tok = cond_name;
+        cond_incl->ctx = IN_ELSE;
+      }
       continue;
     }
 
     if (equal(tok, "endif")) {
       if (!cond_incl)
-        error_tok(start, "stray #endif");
+        error_tok(start, "#endif without previous #if");
       cond_incl = cond_incl->next;
       tok = skip_line(tok->next);
       continue;
@@ -1275,7 +1284,7 @@ void join_adjacent_string_literals(Token *tok) {
 Token *preprocess(Token *tok) {
   tok = preprocess2(tok);
   if (cond_incl)
-    error_tok(cond_incl->tok, "unterminated conditional directive");
+    error_tok(cond_incl->tok, "unterminated #%.*s", cond_incl->tok->len, cond_incl->tok->loc);
 
   for (Token *t = tok; t; t = t->next)
     t->line_no += t->line_delta;
