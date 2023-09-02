@@ -119,9 +119,9 @@ static Hideset *new_hideset(char *name) {
   return hs;
 }
 
-static bool hideset_contains(Hideset *hs, char *s, int len) {
+static bool hideset_contains(Hideset *hs, const char *s) {
   for (; hs; hs = hs->next)
-    if (strlen(hs->name) == len && !strncmp(hs->name, s, len))
+    if (!strcmp(hs->name, s))
       return true;
   return false;
 }
@@ -131,7 +131,7 @@ static Hideset *hideset_union(Hideset *hs1, Hideset *hs2) {
   Hideset *cur = &head;
 
   for (; hs2; hs2 = hs2->next) {
-    if (!hideset_contains(hs1, hs2->name, strlen(hs2->name)))
+    if (!hideset_contains(hs1, hs2->name))
       cur = cur->next = new_hideset(hs2->name);
   }
 
@@ -144,7 +144,7 @@ static Hideset *hideset_intersection(Hideset *hs1, Hideset *hs2) {
   Hideset *cur = &head;
 
   for (; hs1; hs1 = hs1->next) {
-    if (hideset_contains(hs2, hs1->name, strlen(hs1->name)))
+    if (hideset_contains(hs2, hs1->name))
       cur = cur->next = new_hideset(hs1->name);
   }
 
@@ -668,11 +668,11 @@ static Token *subst(Macro *m, MacroArg *args) {
 // If tok is a macro, expand it and return true.
 // Otherwise, do nothing and return false.
 static bool expand_macro(Token **rest, Token *tok) {
-  if (hideset_contains(tok->hideset, tok->loc, tok->len))
-    return false;
-
   Macro *m = find_macro(tok);
   if (!m)
+    return false;
+
+  if (hideset_contains(tok->hideset, m->name))
     return false;
 
   // Built-in dynamic macro application such as __LINE__
