@@ -119,16 +119,6 @@ static Hideset *new_hideset(char *name) {
   return hs;
 }
 
-static Hideset *hideset_union(Hideset *hs1, Hideset *hs2) {
-  Hideset head = {};
-  Hideset *cur = &head;
-
-  for (; hs1; hs1 = hs1->next)
-    cur = cur->next = new_hideset(hs1->name);
-  cur->next = hs2;
-  return head.next;
-}
-
 static bool hideset_contains(Hideset *hs, char *s, int len) {
   for (; hs; hs = hs->next)
     if (strlen(hs->name) == len && !strncmp(hs->name, s, len))
@@ -136,26 +126,35 @@ static bool hideset_contains(Hideset *hs, char *s, int len) {
   return false;
 }
 
+static Hideset *hideset_union(Hideset *hs1, Hideset *hs2) {
+  Hideset head = {};
+  Hideset *cur = &head;
+
+  for (; hs2; hs2 = hs2->next) {
+    if (!hideset_contains(hs1, hs2->name, strlen(hs2->name)))
+      cur = cur->next = new_hideset(hs2->name);
+  }
+
+  cur->next = hs1;
+  return head.next;
+}
+
 static Hideset *hideset_intersection(Hideset *hs1, Hideset *hs2) {
   Hideset head = {};
   Hideset *cur = &head;
 
-  for (; hs1; hs1 = hs1->next)
+  for (; hs1; hs1 = hs1->next) {
     if (hideset_contains(hs2, hs1->name, strlen(hs1->name)))
       cur = cur->next = new_hideset(hs1->name);
+  }
+
   return head.next;
 }
 
 static Token *add_hideset(Token *tok, Hideset *hs) {
-  Token head = {};
-  Token *cur = &head;
-
-  for (; tok; tok = tok->next) {
-    Token *t = copy_token(tok);
+  for (Token *t = tok; t; t = t->next)
     t->hideset = hideset_union(t->hideset, hs);
-    cur = cur->next = t;
-  }
-  return head.next;
+  return tok;
 }
 
 // Append tok2 to the end of tok1.
