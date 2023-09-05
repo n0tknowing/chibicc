@@ -247,12 +247,18 @@ static char *quote_string(char *str) {
 // quoted by # operator.
 static Token *new_str_token(char *str, Token *tmpl, bool stringize) {
   char *buf = stringize ? str : quote_string(str);
-  return tokenize(new_file(tmpl->file->name, tmpl->file->file_no, buf));
+  Token *tok = tokenize(new_file(tmpl->file->name, tmpl->file->file_no, buf));
+  tok->at_bol = tmpl->at_bol;
+  tok->ws = tmpl->ws;
+  return tok;
 }
 
 static Token *new_num_token(int val, Token *tmpl) {
   char *buf = format("%d\n", val);
-  return tokenize(new_file(tmpl->file->name, tmpl->file->file_no, buf));
+  Token *tok = tokenize(new_file(tmpl->file->name, tmpl->file->file_no, buf));
+  tok->at_bol = tmpl->at_bol;
+  tok->ws = tmpl->ws;
+  return tok;
 }
 
 static Token *read_const_expr(Token **rest, Token *tok) {
@@ -541,6 +547,9 @@ static Token *paste(Token *lhs, Token *rhs) {
                    "'%.*s' and '%.*s'", buf, lhs->len, lhs->loc, rhs->len,
                    rhs->loc);
   }
+
+  tok->at_bol = lhs->at_bol;
+  tok->ws = lhs->ws;
   return tok;
 }
 
