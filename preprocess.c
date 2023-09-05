@@ -1,3 +1,5 @@
+// There's a problem with macro expansion inside a macro argument.
+//
 // This file implements the C preprocessor.
 //
 // The preprocessor takes a list of tokens as an input and returns a
@@ -551,6 +553,65 @@ static bool has_varargs(MacroArg *args) {
   return false;
 }
 
+#ifdef DEBUG_MACRO_EXPANSION
+static int macro_depth_ident;
+static bool macro_scan_arg;
+
+static void macro_arg_begin(void) {
+  macro_scan_arg = true;
+}
+
+static void macro_arg_end(void) {
+  macro_scan_arg = false;
+}
+
+static void macro_depth_push(void) {
+  macro_depth_ident += 2;
+}
+
+static void macro_depth_pop(void) {
+  assert(macro_depth_ident > 0);
+  macro_depth_ident -= 2;
+}
+
+static void macro_debug(const char *s, ...) {
+  va_list ap;
+  va_start(ap, s);
+  int color;
+  const char *state;
+  if (macro_scan_arg) {
+    color = 31;
+    state = "ARGS";
+  } else {
+    color = 32;
+    state = "BODY";
+  }
+  printf("\x1b[1;29m\x1b[1;%dm[SCAN_%s]\x1b[0m ", color, state);
+  printf("\x1b[1;%dm", color);
+  for (int i = 0; i < macro_depth_ident; i++)
+    putchar('.');
+  printf("\x1b[0m");
+  if (macro_depth_ident > 0)
+    putchar(' ');
+  vprintf(s, ap);
+  va_end(ap);
+}
+
+#define macro_arg_begin() macro_arg_begin()
+#define macro_arg_end() macro_arg_end()
+#define macro_depth_push() macro_depth_push()
+#define macro_depth_pop() macro_depth_pop()
+#define macro_debug(...) macro_debug(__VA_ARGS__)
+#define macro_printf(...) printf(__VA_ARGS__)
+#else
+#define macro_arg_begin()
+#define macro_arg_end()
+#define macro_depth_push()
+#define macro_depth_pop()
+#define macro_debug(...)
+#define macro_printf(...)
+#endif
+
 // Replace func-like macro parameters with given arguments.
 // Or object-like macro with args set to NULL.
 static Token *subst(Macro *m, MacroArg *args) {
@@ -559,6 +620,11 @@ static Token *subst(Macro *m, MacroArg *args) {
   Token *tok = m->body;
 
   while (tok->kind != TK_EOF) {
+    macro_debug("Replacement list = { ");
+    for (Token *t = tok; t->kind != TK_EOF; t = t->next)
+      macro_printf("%.*s ", t->len, t->loc);
+    macro_printf("}\n");
+
     // "#" followed by a parameter is replaced with stringized actuals.
     // Also, it can appear in object-like macro, and if it's true, "#"
     // is not treated as stringizing operator.
@@ -643,23 +709,35 @@ static Token *subst(Macro *m, MacroArg *args) {
       continue;
     }
 
-    // Handle a macro token. Macro arguments are completely macro-expanded
-    // before they are substituted into a macro body.
+    // Handle arguments. If there are macros, they are completely expanded
+    // before substituted into a macro replacement list.
     if (arg) {
+      macro_arg_begin();
+      macro_debug("Found parameter \x1b[1;33m%s\x1b[0m, replacing it with arguments\n", arg->name);
+      macro_depth_push();
       Token *t = preprocess2(arg->tok);
       t->at_bol = tok->at_bol;
       t->ws = tok->ws;
-      for (; t->kind != TK_EOF; t = t->next)
+      macro_debug("Param->Arg \x1b[1;33m%s\x1b[0m = { ", arg->name);
+      for (; t->kind != TK_EOF; t = t->next) {
+        macro_printf("%.*s ", t->len, t->loc);
         cur = cur->next = copy_token(t);
+      }
+      macro_printf("}\n");
       tok = tok->next;
+      macro_depth_pop();
+      macro_debug("Done replacing parameter \x1b[1;33m%s\x1b[0m\n", arg->name);
+      macro_arg_end();
       continue;
     }
 
-    // Handle a non-macro token.
+    // Handle non-argument tokens.
     cur = cur->next = copy_token(tok);
     tok = tok->next;
     continue;
   }
+
+  macro_debug("Replacement list = { }\n");
 
   cur->next = tok;
   return head.next;
@@ -672,8 +750,8 @@ static bool expand_macro(Token **rest, Token *tok) {
   if (!m)
     return false;
 
-  if (hideset_contains(tok->hideset, m->name))
-    return false;
+  macro_debug("Found %s-like macro \x1b[1;35m%s\x1b[0m, expanding it\n", m->is_objlike ? "obj" : "func", m->name);
+  macro_depth_push();
 
   // Built-in dynamic macro application such as __LINE__
   if (m->handler) {
@@ -681,6 +759,8 @@ static bool expand_macro(Token **rest, Token *tok) {
     (*rest)->at_bol = tok->at_bol;
     (*rest)->ws = tok->ws;
     (*rest)->next = tok->next;
+    macro_debug("Done expanding \x1b[1;35m%s\x1b[0m\n", m->name);
+    macro_depth_pop();
     return true;
   }
 
@@ -688,14 +768,42 @@ static bool expand_macro(Token **rest, Token *tok) {
   Hideset *hs = macro_token->hideset;
   MacroArg *args = NULL;
 
+  macro_debug("HS = { ");
+  for (Hideset *h = hs; h; h = h->next) {
+    macro_printf("\x1b[1;34m%s\x1b[0m", h->name);
+    if (h->next)
+      macro_printf(", ");
+  }
+  macro_printf(" }\n");
+
+  if (hideset_contains(tok->hideset, m->name)) {
+    macro_debug("\x1b[1;34m%s\x1b[0m is in its hideset (blue painted)\n", m->name);
+    macro_depth_pop();
+    return false;
+  }
+
   if (!m->is_objlike) {
     // If a funclike macro token is not followed by an argument list,
     // treat it as a normal identifier.
-    if (!equal(tok->next, "("))
+    if (!equal(tok->next, "(")) {
+      macro_debug("No `(`, leaving\n");
+      macro_depth_pop();
       return false;
+    }
 
     args = read_macro_args(&tok, tok, m->params, m->va_args_name);
     Token *rparen = tok;
+
+    macro_debug("\x1b[1;35m%s\x1b[0m arguments = { ", m->name);
+    for (MacroArg *arg = args; arg; arg = arg->next) {
+      macro_printf("\x1b[1;33m%s\x1b[0m = { ", arg->name);
+      for (Token *t = arg->tok; t->kind != TK_EOF; t = t->next)
+        macro_printf("%.*s ", t->len, t->loc);
+      macro_printf("}");
+      if (arg->next)
+        macro_printf(", ");
+    }
+    macro_printf(" }\n");
 
     // Tokens that consist a func-like macro invocation may have different
     // hidesets, and if that's the case, it's not clear what the hideset
@@ -707,8 +815,21 @@ static bool expand_macro(Token **rest, Token *tok) {
 
   hs = hideset_union(hs, new_hideset(m->name));
 
-  if (m->body->kind != TK_EOF) { // If replacement list is not empty
-    Token *body = subst(m, args);
+  macro_debug("Blue painting \x1b[1;35m%s\x1b[0m, HS = { ", m->name);
+  for (Hideset *h = hs; h; h = h->next) {
+    macro_printf("\x1b[1;34m%s\x1b[0m", h->name);
+    if (h->next)
+      macro_printf(", ");
+  }
+  macro_printf(" }\n");
+
+  macro_debug("Substituting \x1b[1;35m%s\x1b[0m\n", m->name);
+  macro_depth_push();
+
+  Token *body = m->body;
+
+  if (body->kind != TK_EOF) { // If replacement list is not empty
+    body = subst(m, args);
     body = add_hideset(body, hs);
     for (Token *t = body; t->kind != TK_EOF; t = t->next)
       t->origin = macro_token;
@@ -718,6 +839,17 @@ static bool expand_macro(Token **rest, Token *tok) {
   } else {
     *rest = tok->next;
   }
+
+  macro_depth_pop();
+  macro_debug("Done substituting \x1b[1;35m%s\x1b[0m\n", m->name);
+
+  macro_debug("Token sequence after substitution = { ");
+  for (Token *t = body; t->kind != TK_EOF; t = t->next)
+    macro_printf("%.*s ", t->len, t->loc);
+  macro_printf("}\n");
+
+  macro_depth_pop();
+  macro_debug("Done expanding \x1b[1;35m%s\x1b[0m\n", m->name);
   return true;
 }
 
