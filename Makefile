@@ -1,4 +1,4 @@
-CFLAGS=-std=c11 -g -fno-common -Wall -Wno-switch
+CFLAGS=-std=c11 -O2 -g -fno-common -Wall -Wno-switch -D DEBUG_MACRO_EXPANSION
 
 SRCS=codegen.c hashmap.c main.c parse.c preprocess.c strings.c tokenize.c\
 	 type.c unicode.c
