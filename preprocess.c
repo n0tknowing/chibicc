@@ -393,6 +393,9 @@ static void read_macro_definition(Token **rest, Token *tok) {
   if (tok->kind != TK_IDENT)
     error_tok(tok, "macro name must be an identifier");
 
+  if (tok->len == 7 && !strncmp(tok->loc, "defined", 7))
+    error_tok(tok, "cannot be used as a macro name");
+
   MacroParam *params = NULL;
   bool is_objlike = true;
   char *va_args_name = NULL;
