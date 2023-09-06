@@ -21,7 +21,7 @@
 #define MAX(x, y) ((x) < (y) ? (y) : (x))
 #define MIN(x, y) ((x) < (y) ? (x) : (y))
 
-#if defined(__GNUC__) || defined(__clang__)
+#ifdef __chibicc__
 # define __attribute__(x)
 #endif
 
