@@ -325,10 +325,11 @@ static long eval_const_expr(Token **rest, Token *tok) {
       // Special handling for macro generated defined operator.
       // It's actually undefined behaviour, but some compilers accept it and
       // evaluate it as how defined operator works in a #if/#elif expression.
+      Token *start = expr;
       bool has_paren = consume(&expr, expr->next, "(");
 
       if (expr->kind != TK_IDENT)
-        error_tok(expr, "'defined' requires an identifier");
+        error_tok(start, "'defined' requires an identifier");
 
       Macro *m = find_macro(expr);
       Token *next = expr->next;
@@ -874,8 +875,11 @@ static bool expand_macro(Token **rest, Token *tok) {
   if (body->kind != TK_EOF) { // If replacement list is not empty
     body = subst(m, args);
     body = add_hideset(body, hs);
-    for (Token *t = body; t->kind != TK_EOF; t = t->next)
+    for (Token *t = body; t->kind != TK_EOF; t = t->next) {
+      t->line_no = macro_token->line_no;
+      t->line_delta = macro_token->line_delta;
       t->origin = macro_token;
+    }
     *rest = append(body, tok->next);
     (*rest)->at_bol = macro_token->at_bol;
     (*rest)->ws = macro_token->ws;
