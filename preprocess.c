@@ -564,14 +564,14 @@ static bool has_varargs(MacroArg *args) {
 
 #ifdef DEBUG_MACRO_EXPANSION
 static int macro_depth_ident;
-static bool macro_scan_arg;
+static int macro_scan_arg;
 
 static void macro_arg_begin(void) {
-  macro_scan_arg = true;
+  macro_scan_arg++;
 }
 
 static void macro_arg_end(void) {
-  macro_scan_arg = false;
+  macro_scan_arg--;
 }
 
 static void macro_depth_push(void) {
