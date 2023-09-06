@@ -1,4 +1,4 @@
-CFLAGS=-std=c11 -g -fno-common -Wall -Wno-switch
+CFLAGS=-std=c11 -g -O2 -fno-common -Wall -Wno-switch
 
 SRCS=codegen.c hashmap.c main.c parse.c preprocess.c strings.c tokenize.c\
 	 type.c unicode.c
