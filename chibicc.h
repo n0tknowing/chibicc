@@ -87,6 +87,7 @@ struct Token {
   int line_delta;   // Line number
   bool at_bol;      // True if this token is at beginning of line
   uint8_t ws;       // Count how many whitespaces this token have
+  bool disabled;    // Macro that's permanently disabled its expansion.
   Hideset *hideset; // For macro expansion
   Token *origin;    // If this is expanded from a macro, the original token
 };

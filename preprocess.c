@@ -687,19 +687,36 @@ static Token *subst(Macro *m, MacroArg *args) {
       continue;
     }
 
-    // Handle a macro token. Macro arguments are completely macro-expanded
-    // before they are substituted into a macro body.
+    // Handle an argument. Macros inside it are completely expanded before
+    // they are substituted into a macro body.
     if (arg) {
       Token *t = preprocess2(arg->tok);
       t->at_bol = tok->at_bol;
       t->ws = tok->ws;
-      for (; t->kind != TK_EOF; t = t->next)
+      for (; t->kind != TK_EOF; t = t->next) {
+        // Since expansion inside an argument is isolated from the rest of
+        // source file, a macro token may still available for future expansion
+        // because of rescanning step after substitution.
+        //
+        // To differentiate it with a macro token that's permanently disabled
+        // its expansion, we check the `disabled` struct member, and if it's
+        // false, the macro token is still available for future expansion and
+        // we need to clear its hide set.
+        //
+        // If we're not clear the hide set, the hide set of that macro token
+        // will be dirty and some expansion may incomplete because of
+        // false-positive when calling hideset_contains() in rescanning step.
+        //
+        // This false-positive happens a lot in real programs that abuse
+        // nested macros.
+        if (!t->disabled)
+          t->hideset = NULL;
         cur = cur->next = copy_token(t);
+      }
       tok = tok->next;
       continue;
     }
 
-    // Handle a non-macro token.
     cur = cur->next = copy_token(tok);
     tok = tok->next;
     continue;
@@ -716,8 +733,16 @@ static bool expand_macro(Token **rest, Token *tok) {
   if (!m)
     return false;
 
-  if (hideset_contains(tok->hideset, m->name))
+  if (tok->disabled)
     return false;
+
+  if (hideset_contains(tok->hideset, m->name)) {
+    // [https://www.sigbus.info/n1570#6.10.3.4p2] This macro token is no longer
+    // available for future expansion, tok->disabled is for faster checking.
+    // A better implementation may want to use bit flag instead.
+    tok->disabled = true;
+    return false;
+  }
 
   // Built-in dynamic macro application such as __LINE__
   if (m->handler) {
