@@ -656,6 +656,20 @@ static Token *subst(Macro *m, MacroArg *args) {
 
     // lhs ##
     if (arg && equal(tok->next, "##")) {
+      Token *rhs = tok->next->next;
+
+      if (arg->tok->kind == TK_EOF) {
+        MacroArg *arg2 = find_arg(args, rhs);
+        if (arg2) {
+          for (Token *t = arg2->tok; t->kind != TK_EOF; t = t->next)
+            cur = cur->next = copy_token(t);
+        } else {
+          cur = cur->next = copy_token(rhs);
+        }
+        tok = rhs->next;
+        continue;
+      }
+
       for (Token *t = arg->tok; t->kind != TK_EOF; t = t->next)
         cur = cur->next = copy_token(t);
       tok = tok->next;
@@ -719,15 +733,6 @@ static bool expand_macro(Token **rest, Token *tok) {
   if (!m)
     return false;
 
-  // Built-in dynamic macro application such as __LINE__
-  if (m->handler) {
-    *rest = m->handler(tok);
-    (*rest)->at_bol = tok->at_bol;
-    (*rest)->ws = tok->ws;
-    (*rest)->next = tok->next;
-    return true;
-  }
-
   if (tok->disabled)
     return false;
 
@@ -737,6 +742,15 @@ static bool expand_macro(Token **rest, Token *tok) {
     // A better implementation may want to use bit flag instead.
     tok->disabled = true;
     return false;
+  }
+
+  // Built-in dynamic macro application such as __LINE__
+  if (m->handler) {
+    *rest = m->handler(tok);
+    (*rest)->at_bol = tok->at_bol;
+    (*rest)->ws = tok->ws;
+    (*rest)->next = tok->next;
+    return true;
   }
 
   Token *macro_token = tok;
