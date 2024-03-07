@@ -461,24 +461,23 @@ static void read_macro_definition(Token **rest, Token *tok) {
   }
 }
 
-static MacroArg *read_macro_arg_one(Token **rest, Token *tok, bool read_rest) {
+static MacroArg *read_macro_arg_one(Token **rest, Token *tok, bool va_args) {
   Token head = {};
   Token *cur = &head;
   int level = 0;
 
   for (;;) {
-    if (level == 0 && equal(tok, ")"))
-      break;
-    if (level == 0 && !read_rest && equal(tok, ","))
-      break;
-
     if (tok->kind == TK_EOF)
       error_tok(tok, "premature end of input");
 
-    if (equal(tok, "("))
+    if (equal(tok, "(")) {
       level++;
-    else if (equal(tok, ")"))
-      level--;
+    } else if (equal(tok, ")")) {
+      if (level-- == 0)
+        break;
+    } else if (equal(tok, ",") && level == 0 && !va_args) {
+      break;
+    }
 
     cur = cur->next = copy_token(tok);
     tok = tok->next;
@@ -768,7 +767,7 @@ static bool expand_macro(Token **rest, Token *tok) {
 
     // Tokens that consist a func-like macro invocation may have different
     // hidesets, and if that's the case, it's not clear what the hideset
-    // for the new tokens should be. We take the interesection of the
+    // for the new tokens should be. We take the intersection of the
     // macro token and the closing parenthesis and use it as a new hideset
     // as explained in the Dave Prossor's algorithm.
     hs = hideset_intersection(hs, rparen->hideset);
