@@ -877,9 +877,9 @@ static char *read_include_filename(Token **rest, Token *tok, bool *is_dquote) {
   }
 
   // Pattern 3: #include FOO
-  // In this case FOO must be macro-expanded to either
-  // a single string token or a sequence of "<" ... ">".
-  if (tok->kind == TK_IDENT) {
+  // In this case if FOO is a macro, it may expand to one of
+  // two patterns as above.
+  if (tok->kind == TK_IDENT && find_macro(tok)) {
     Token *tok2 = preprocess2(copy_line(rest, tok));
     return read_include_filename(&tok2, tok2, is_dquote);
   }
